@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Critical: strict-origin-when-cross-origin protects against Error 153 referrer policy drops -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>VidQuiz Studio — Interactive Video Assessment Engine</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- MathJax Configuration and Script for LaTeX Math Rendering -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      },
+      startup: {
+        pageReady: () => {
+          return MathJax.startup.defaultPageReady();
+        }
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.65);
+    }
+    .glass-modal {
+      background: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(71, 85, 105, 0.8);
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.18); opacity: 0.85; }
+    }
+    .marker-pulse {
+      animation: pulseSoft 2.2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- file:/// Protocol Warning Diagnostic Banner (Hidden by default, triggered only if run directly from filesystem) -->
+  <div id="fileProtocolBanner" class="hidden bg-amber-950/90 border-b border-amber-600/60 text-amber-200 px-4 py-3 text-xs sm:text-sm">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="flex items-start sm:items-center gap-2.5">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400 text-lg flex-shrink-0 mt-0.5 sm:mt-0"></i>
+        <div>
+          <span class="font-bold text-amber-300">File Protocol Detected (`file:///`):</span>
+          <span>YouTube embeds require an HTTP/HTTPS origin (`http://localhost` or GitHub Pages) to prevent security errors (Error 153).</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="showLocalServerGuideBtn" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1 rounded-lg text-xs transition-colors">
+          How to run locally
+        </button>
+        <button id="dismissFileProtocolBanner" class="text-amber-400 hover:text-amber-200 px-2 py-1 text-xs">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Diagnostics Modal (For Error 153, 101, 150 etc.) -->
+  <div id="playerErrorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div class="glass-modal max-w-lg w-full rounded-2xl p-6 shadow-2xl border border-rose-500/40">
+      <div class="flex items-center gap-3 text-rose-400 pb-3 border-b border-slate-800">
+        <div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/30">
+          <i class="fa-solid fa-circle-exclamation text-xl"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white" id="errorModalTitle">YouTube Playback Error</h3>
+          <span class="text-xs text-rose-400/90 font-mono-code" id="errorModalCode">Error Code: 153</span>
+        </div>
+      </div>
+      
+      <div class="mt-4 text-xs sm:text-sm text-slate-300 space-y-3 leading-relaxed" id="errorModalExplanation">
+        <!-- Injected explanation -->
+      </div>
+
+      <div class="mt-5 p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-400" id="errorModalActionAdvice">
+        <!-- Injected solutions -->
+      </div>
+
+      <div class="mt-5 flex justify-end gap-2 pt-3 border-t border-slate-800">
+        <button id="loadDefaultSafeVideoBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition-colors">
+          Load Verified Safe Physics Video
+        </button>
+        <button id="closeErrorModalBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Local Server Quick Guide Modal -->
+  <div id="localServerGuideModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-700">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-network-wired text-emerald-400"></i>
+          Running on HTTP/HTTPS
+        </h3>
+        <button id="closeLocalServerGuideBtn" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="mt-4 text-xs text-slate-300 space-y-3">
+        <p>YouTube blocks embedded players when loaded from an empty origin (<code class="text-amber-400 bg-slate-900 px-1 py-0.5 rounded">file:///</code>). Use any of these one-step options:</p>
+        <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
+          <span class="font-semibold text-emerald-400 block mb-1">Option 1: VS Code Live Server</span>
+          <p class="text-slate-400">Right-click this HTML file in Visual Studio Code and choose <b>"Open with Live Server"</b>.</p>
+        </div>
+        <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
+          <span class="font-semibold text-cyan-400 block mb-1">Option 2: Terminal / Command Prompt</span>
+          <p class="text-slate-400">In the directory containing this file, run:</p>
+          <code class="block mt-1 font-mono-code text-[11px] bg-slate-950 p-2 rounded border border-slate-800 text-slate-300">python -m http.server 8000</code>
+          <p class="text-slate-400 mt-1">Then open <code class="text-slate-200">http://localhost:8000</code> in your browser.</p>
+        </div>
+        <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
+          <span class="font-semibold text-purple-400 block mb-1">Option 3: Free Instant Host</span>
+          <p class="text-slate-400">Drag and drop this file onto <b>Netlify Drop</b> (<span class="text-indigo-300">app.netlify.com/drop</span>) or upload to <b>GitHub Pages</b>.</p>
+        </div>
+      </div>
+      <div class="mt-5 flex justify-end">
+        <button id="dismissGuideInnerBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl text-xs transition-colors">
+          Got it
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header Navigation -->
+  <header class="glass-panel sticky top-0 z-40 px-4 lg:px-8 py-3 flex items-center justify-between border-b border-slate-800/80">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+        <i class="fa-solid fa-atom text-white text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-extrabold tracking-tight text-white">VidQuiz Studio</h1>
+          <span class="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            Resilient Player API
+          </span>
+        </div>
+        <p class="text-xs text-slate-400 hidden sm:block">Interactive checkpoints with LaTeX MathJax equation rendering</p>
+      </div>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="flex items-center gap-2 sm:gap-3 text-xs">
+      <!-- Performance Score Badge -->
+      <div class="hidden sm:flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 font-mono-code">
+        <span class="text-slate-400">Score:</span>
+        <span id="headerScore" class="font-bold text-emerald-400">0 / 0 (0%)</span>
+      </div>
+
+      <!-- Export / Import buttons -->
+      <button id="exportQuizBtn" title="Export checkpoints as JSON" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white transition-colors">
+        <i class="fa-solid fa-file-export text-xs text-cyan-400"></i>
+        <span class="hidden md:inline">Export</span>
+      </button>
+
+      <label for="importQuizInput" title="Import checkpoints from JSON" class="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white transition-colors">
+        <i class="fa-solid fa-file-import text-xs text-purple-400"></i>
+        <span class="hidden md:inline">Import</span>
+      </label>
+      <input type="file" id="importQuizInput" accept=".json" class="hidden">
+
+      <!-- Add Checkpoint Button -->
+      <button id="openCreateModalBtn" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">
+        <i class="fa-solid fa-plus text-xs"></i>
+        <span>Add Checkpoint</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Application Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+    <!-- Video & Interactive Playback Area (8 Columns on desktop) -->
+    <div class="lg:col-span-8 flex flex-col gap-4">
+      
+      <!-- Video Container With Dynamic Overlays -->
+      <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl group">
+        <!-- Target div for YouTube IFrame Player -->
+        <div id="ytPlayerContainer" class="w-full h-full"></div>
+
+        <!-- Lock shield to prevent bypassing active questions -->
+        <div id="videoLockOverlay" class="hidden absolute inset-0 z-20 bg-transparent cursor-not-allowed"></div>
+
+        <!-- Active Checkpoint Assessment Overlay (Auto-paused modal) -->
+        <div id="quizAssessmentOverlay" class="hidden absolute inset-0 z-30 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md transition-all">
+          <div class="glass-modal max-w-xl w-full rounded-2xl p-5 sm:p-6 shadow-2xl flex flex-col max-h-[92%] overflow-y-auto no-scrollbar border border-slate-700/90">
+            
+            <!-- Assessment Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800/80">
+              <div class="flex items-center gap-2">
+                <span class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
+                  <i class="fa-solid fa-graduation-cap"></i>
+                </span>
+                <span id="quizBadgeTime" class="text-xs font-bold uppercase tracking-wider text-emerald-400 font-mono-code">
+                  Checkpoint 00:00
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 text-xs text-amber-400 font-medium bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
+                <i class="fa-solid fa-pause text-[10px]"></i>
+                <span>Video Paused</span>
+              </div>
+            </div>
+
+            <!-- Question Prompt (With LaTeX Math Rendering) -->
+            <div class="mt-4">
+              <div id="quizQuestionBody" class="text-sm sm:text-base font-semibold text-white leading-relaxed">
+                <!-- Injected Question with MathJax equations -->
+              </div>
+            </div>
+
+            <!-- Options Container -->
+            <div id="quizOptionsContainer" class="mt-4 flex flex-col gap-2.5">
+              <!-- Dynamically populated options -->
+            </div>
+
+            <!-- Feedback & Conceptual Explanation Box -->
+            <div id="quizFeedbackBox" class="hidden mt-4 p-4 rounded-xl border text-xs sm:text-sm leading-relaxed transition-all">
+              <div class="flex items-start gap-3">
+                <i id="quizFeedbackIcon" class="mt-0.5 text-base sm:text-lg"></i>
+                <div class="flex-1">
+                  <h4 id="quizFeedbackTitle" class="font-bold text-sm"></h4>
+                  <div id="quizFeedbackContent" class="mt-1 text-slate-300 leading-normal"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="mt-5 flex items-center justify-between pt-3 border-t border-slate-800">
+              <button id="rewindToCheckpointStartBtn" class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors">
+                <i class="fa-solid fa-arrow-rotate-left"></i>
+                <span>Replay Segment (-5s)</span>
+              </button>
+              <button id="resumePlaybackBtn" disabled class="px-5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 bg-slate-800 text-slate-500 cursor-not-allowed">
+                <span>Continue Video</span>
+                <i class="fa-solid fa-forward-step text-xs"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Scrubber Timeline with Checkpoint Pins -->
+      <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3 shadow-lg">
+        <!-- Interactive Progress Bar -->
+        <div class="relative w-full h-3.5 bg-slate-900 rounded-full cursor-pointer flex items-center border border-slate-800" id="scrubberTrack">
+          <!-- Loaded buffer background if available -->
+          <div id="scrubberProgress" class="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 rounded-full w-0 transition-all pointer-events-none"></div>
+          
+          <!-- Interactive Pins Layer -->
+          <div id="checkpointMarkersLayer" class="absolute inset-0 pointer-events-none">
+            <!-- Pins dynamically injected here -->
+          </div>
+        </div>
+
+        <!-- Controls Row -->
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-1 font-mono-code">
+          <div class="flex items-center gap-2">
+            <span id="timeCurrent" class="text-slate-100 font-bold">00:00</span>
+            <span class="text-slate-600">/</span>
+            <span id="timeTotal">00:00</span>
+          </div>
+
+          <div class="flex items-center gap-2 sm:gap-3">
+            <button id="btnPlayPause" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/60 transition-colors">
+              <i class="fa-solid fa-play text-xs text-emerald-400" id="iconPlayPause"></i>
+              <span id="textPlayPause" class="hidden sm:inline">Play</span>
+            </button>
+            <button id="btnMarkCurrentTime" title="Create checkpoint at current video timestamp" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">
+              <i class="fa-solid fa-location-crosshairs text-xs"></i>
+              <span>Mark Here</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Video Loader Input Card with Error 153 Guardrails -->
+      <div class="glass-panel rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row items-center gap-3">
+        <div class="flex-1 w-full">
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
+            <i class="fa-brands fa-youtube text-red-500"></i>
+            Load Custom YouTube URL or Video ID
+          </label>
+          <div class="relative">
+            <input type="text" id="videoUrlInput" placeholder="Paste standard URL, youtu.be, embed, shorts, or 11-char ID"
+              class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors font-mono-code">
+          </div>
+        </div>
+        <button id="btnLoadCustomVideo" class="w-full sm:w-auto sm:mt-5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i>
+          <span>Load Video</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Sidebar: Assessment Summary, Stats, Checkpoints List (4 Columns on desktop) -->
+    <div class="lg:col-span-4 flex flex-col gap-4">
+      
+      <!-- Performance Analytics Card -->
+      <div class="glass-panel rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+            Student Progress
+          </h3>
+          <span id="badgePercent" class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-mono-code">
+            0% Complete
+          </span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2.5 text-center">
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5">
+            <span class="block text-lg font-black text-emerald-400 font-mono-code" id="statCorrect">0</span>
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider">Correct</span>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5">
+            <span class="block text-lg font-black text-rose-400 font-mono-code" id="statIncorrect">0</span>
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider">Incorrect</span>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5">
+            <span class="block text-lg font-black text-slate-100 font-mono-code" id="statTotal">0</span>
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider">Total</span>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+          <span class="text-slate-400">Restart and re-try:</span>
+          <button id="btnResetQuizProgress" class="text-xs text-rose-400 hover:text-rose-300 font-medium flex items-center gap-1.5 transition-colors">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>Reset Answers</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Checkpoint List & Interactive Management -->
+      <div class="glass-panel rounded-2xl p-4 shadow-xl flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-list-ol text-cyan-400"></i>
+            Assessment Checkpoints
+          </h3>
+          <span class="text-xs text-slate-400 font-mono-code" id="countBadge">3 stops</span>
+        </div>
+
+        <div id="checkpointsSidebarContainer" class="flex flex-col gap-2.5 max-h-[460px] overflow-y-auto no-scrollbar pr-0.5">
+          <!-- Checkpoint Cards dynamically rendered here -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Create / Edit Checkpoint Modal Dialog -->
+  <div id="checkpointEditorModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div class="glass-modal max-w-lg w-full rounded-2xl p-5 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto no-scrollbar border border-slate-700">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="font-bold text-white flex items-center gap-2 text-base">
+          <i class="fa-solid fa-pen-to-square text-emerald-400"></i>
+          <span id="editorModalTitle">Create Checkpoint Question</span>
+        </h3>
+        <button id="btnCloseEditorModal" class="text-slate-400 hover:text-white transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="checkpointForm" class="mt-4 flex flex-col gap-3.5 text-xs">
+        <input type="hidden" id="editingCheckpointId" value="">
+
+        <!-- Trigger Timestamp -->
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Trigger Timestamp (seconds)</label>
+          <div class="flex gap-2">
+            <input type="number" id="inputTime" required min="1" step="1" placeholder="e.g. 15"
+              class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 font-mono-code focus:outline-none focus:border-emerald-500">
+            <button type="button" id="btnGrabCurrentTime" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-700 rounded-xl font-medium transition-colors">
+              Current Time
+            </button>
+          </div>
+          <span class="text-[11px] text-slate-500 mt-1 block">Video pauses automatically when reaching this second mark.</span>
+        </div>
+
+        <!-- Question Body (Supports LaTeX) -->
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">
+            Question Prompt (LaTeX Supported: <code class="text-emerald-400">$...$</code> or <code class="text-emerald-400">$$...$$</code>)
+          </label>
+          <textarea id="inputQuestion" required rows="2" placeholder="e.g., What is the induced EMF given by Faraday's Law: $\mathcal{E} = -\frac{d\Phi_B}{dt}$?"
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+        </div>
+
+        <!-- Multiple Choice Options -->
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1.5">Multiple-Choice Options & Correct Answer</label>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <input type="radio" name="correctRadioGroup" value="0" checked class="accent-emerald-500 w-4 h-4 cursor-pointer">
+              <input type="text" id="optField0" required placeholder="Option A (Correct by default)" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200">
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="radio" name="correctRadioGroup" value="1" class="accent-emerald-500 w-4 h-4 cursor-pointer">
+              <input type="text" id="optField1" required placeholder="Option B" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200">
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="radio" name="correctRadioGroup" value="2" class="accent-emerald-500 w-4 h-4 cursor-pointer">
+              <input type="text" id="optField2" placeholder="Option C (optional)" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200">
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="radio" name="correctRadioGroup" value="3" class="accent-emerald-500 w-4 h-4 cursor-pointer">
+              <input type="text" id="optField3" placeholder="Option D (optional)" class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-200">
+            </div>
+          </div>
+          <span class="text-[11px] text-slate-500 mt-1 block">Click the radio button corresponding to the correct answer. LaTeX works in options too!</span>
+        </div>
+
+        <!-- Explanation & Feedback -->
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Teacher Explanation & Conceptual Rationale</label>
+          <textarea id="inputExplanation" rows="2" placeholder="e.g., By Lenz's law, the negative sign signifies that the induced current opposes the change in magnetic flux."
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"></textarea>
+        </div>
+
+        <!-- Form Submit / Cancel -->
+        <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+          <button type="button" id="btnCancelEditor" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg shadow-emerald-600/30 transition-all">
+            Save Checkpoint
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- Toast Notification Message Box -->
+  <div id="toastNotification" class="fixed bottom-6 right-6 z-50 transform translate-y-16 opacity-0 transition-all duration-300 bg-slate-900 border border-emerald-500/50 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs max-w-sm">
+    <i class="fa-solid fa-circle-check text-emerald-400 text-base" id="toastIcon"></i>
+    <span id="toastMessage">Checkpoint saved</span>
+  </div>
+
+  <!-- Load YouTube IFrame API -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <script>
+    // ==========================================
+    // 1. APPLICATION STATE & ERROR 153 SAFEGUARD
+    // ==========================================
+    let player = null;
+    let isPlayerReady = false;
+    let pollingTimer = null;
+    let activeCheckpoint = null;
+
+    // Default safe educational video ID:
+    // MIT Physics 8.02 Electricity & Magnetism (Walter Lewin: Faraday's Law Demo) or high-grade embeddable demo
+    // "bhtb8uuMpfs" or standard MIT 8.02 course clips allow universal embeds
+    let currentVideoId = "bhtb8uuMpfs"; 
+
+    // Initial Physics Checkpoints with LaTeX Math equations
+    let checkpoints = [
+      {
+        id: "cp-lorentz-1",
+        time: 14,
+        question: "Consider a charged particle $q$ moving with velocity $\\vec{v}$ through magnetic field $\\vec{B}$. What is the magnetic Lorentz force $\\vec{F}_B$?",
+        options: [
+          "$\\vec{F}_B = q(\\vec{v} \\times \\vec{B})$",
+          "$\\vec{F}_B = q(\\vec{v} \\cdot \\vec{B})$",
+          "$\\vec{F}_B = \\frac{q\\vec{v}}{|\\vec{B}|}$",
+          "$\\vec{F}_B = m\\vec{a} + q\\vec{E}$"
+        ],
+        correctIndex: 0,
+        explanation: "The magnetic force on a charge is given by the cross product $\\vec{F}_B = q(\\vec{v} \\times \\vec{B})$, meaning the force is always perpendicular to both $\\vec{v}$ and $\\vec{B}$.",
+        completed: false,
+        userAnswer: null,
+        isCorrect: false
+      },
+      {
+        id: "cp-faraday-2",
+        time: 32,
+        question: "According to Faraday's Law of Induction, what determines the induced electromotive force (EMF) $\\mathcal{E}$ in a closed loop?",
+        options: [
+          "The static magnitude of the magnetic field $\\vec{B}$ alone",
+          "The time rate of change of magnetic flux: $\\mathcal{E} = -\\frac{d\\Phi_B}{dt}$",
+          "The electrical resistance of the wire loop: $\\mathcal{E} = IR^2$",
+          "The absolute temperature of the conductor: $\\mathcal{E} = k_B T$"
+        ],
+        correctIndex: 1,
+        explanation: "Faraday's Law states $\\mathcal{E} = -\\frac{d\\Phi_B}{dt}$, where the minus sign (Lenz's Law) indicates that the induced current opposes the change in magnetic flux.",
+        completed: false,
+        userAnswer: null,
+        isCorrect: false
+      },
+      {
+        id: "cp-flux-3",
+        time: 55,
+        question: "Magnetic flux $\\Phi_B$ through a planar surface of area $A$ with constant $\\vec{B}$ oriented at angle $\\theta$ to the surface normal is:",
+        options: [
+          "$\\Phi_B = B \\cdot A \\cdot \\cos(\\theta)$",
+          "$\\Phi_B = \\frac{B}{A \\sin(\\theta)}$",
+          "$\\Phi_B = \\int \\vec{E} \\cdot d\\vec{\\ell}$",
+          "$\\Phi_B = \\mu_0 I_{\\text{enc}}$"
+        ],
+        correctIndex: 0,
+        explanation: "Magnetic flux is defined as $\\Phi_B = \\iint \\vec{B} \\cdot d\\vec{A} = B A \\cos(\\theta)$. When $\\vec{B}$ is parallel to the surface normal ($\\theta = 0^\\circ$), flux is maximized.",
+        completed: false,
+        userAnswer: null,
+        isCorrect: false
+      }
+    ];
+
+    // Detect if running on file:/// protocol and inform user
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.location.protocol === 'file:') {
+        document.getElementById('fileProtocolBanner').classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('dismissFileProtocolBanner').addEventListener('click', () => {
+      document.getElementById('fileProtocolBanner').classList.add('hidden');
+    });
+
+    document.getElementById('showLocalServerGuideBtn').addEventListener('click', () => {
+      document.getElementById('localServerGuideModal').classList.remove('hidden');
+    });
+    document.getElementById('closeLocalServerGuideBtn').addEventListener('click', () => {
+      document.getElementById('localServerGuideModal').classList.add('hidden');
+    });
+    document.getElementById('dismissGuideInnerBtn').addEventListener('click', () => {
+      document.getElementById('localServerGuideModal').classList.add('hidden');
+    });
+
+    // ==========================================
+    // 2. YOUTUBE PLAYER API INITIALIZATION
+    // ==========================================
+    window.onYouTubeIframeAPIReady = function() {
+      createPlayer(currentVideoId);
+    };
+
+    /**
+     * Resolves safe origin parameter to counter YouTube Error 153
+     */
+    function resolveSafeOrigin() {
+      if (window.location.protocol.startsWith('http')) {
+        return window.location.origin;
+      }
+      // Fallback for sandboxed or file:// scenarios
+      return 'https://www.youtube-nocookie.com';
+    }
+
+    function createPlayer(videoId) {
+      if (player && typeof player.destroy === 'function') {
+        player.destroy();
+      }
+
+      const safeOrigin = resolveSafeOrigin();
+
+      player = new YT.Player('ytPlayerContainer', {
+        videoId: videoId,
+        host: 'https://www.youtube-nocookie.com', // Enhanced privacy host with relaxed origin restrictions
+        playerVars: {
+          'autoplay': 0,
+          'controls': 1,
+          'rel': 0,
+          'modestbranding': 1,
+          'playsinline': 1,
+          'enablejsapi': 1,
+          'origin': safeOrigin
+        },
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange,
+          'onError': onPlayerError
+        }
+      });
+    }
+
+    function onPlayerReady(event) {
+      isPlayerReady = true;
+      renderTimelinePins();
+      renderSidebarList();
+      updateProgressStats();
+      startPlaybackTracker();
+      updateTotalDuration();
+      showToast("Player ready!", "check");
+      triggerMathJaxTypeset();
+    }
+
+    function onPlayerStateChange(event) {
+      const icon = document.getElementById('iconPlayPause');
+      const text = document.getElementById('textPlayPause');
+      if (event.data === YT.PlayerState.PLAYING) {
+        icon.className = "fa-solid fa-pause text-xs text-amber-400";
+        text.textContent = "Pause";
+      } else {
+        icon.className = "fa-solid fa-play text-xs text-emerald-400";
+        text.textContent = "Play";
+      }
+    }
+
+    // ==========================================
+    // 3. COMPREHENSIVE ERROR 153 & API ERROR HANDLER
+    // ==========================================
+    function onPlayerError(event) {
+      const errCode = event.data;
+      const modal = document.getElementById('playerErrorModal');
+      const title = document.getElementById('errorModalTitle');
+      const codeSpan = document.getElementById('errorModalCode');
+      const explanation = document.getElementById('errorModalExplanation');
+      const advice = document.getElementById('errorModalActionAdvice');
+
+      codeSpan.textContent = `Error Code: ${errCode}`;
+
+      switch(errCode) {
+        case 2:
+          title.textContent = "Invalid Video ID Parameter";
+          explanation.innerHTML = "<p>The requested video ID is malformed or invalid.</p>";
+          advice.innerHTML = "Check that the YouTube link has an 11-character video ID.";
+          break;
+        case 5:
+          title.textContent = "HTML5 Player / Codec Error";
+          explanation.innerHTML = "<p>The requested content cannot be played in an HTML5 player.</p>";
+          advice.innerHTML = "Try restarting your browser or testing another video link.";
+          break;
+        case 100:
+          title.textContent = "Video Not Found / Removed";
+          explanation.innerHTML = "<p>The video was deleted or has been set to private by the creator.</p>";
+          advice.innerHTML = "Please load a public or unlisted video.";
+          break;
+        case 101:
+        case 150:
+          title.textContent = "Embedding Disabled by Owner";
+          explanation.innerHTML = "<p>The owner of this video has disabled playback in third-party embedded players.</p>";
+          advice.innerHTML = "Choose another video that allows embedding (enabled by default in YouTube Studio).";
+          break;
+        case 153:
+        default:
+          title.textContent = "Origin / Referrer Security Policy Error (Error 153)";
+          explanation.innerHTML = `
+            <p><b>Why this happens:</b> YouTube's embedded player rejected the request because the web page's origin cannot be validated.</p>
+            <p class="mt-2 text-slate-400">This commonly happens when opening the HTML file via <code class="text-amber-400">file:///</code> rather than a local web server (<code class="text-emerald-400">http://localhost</code>), or when browser privacy shields strip the HTTP Referrer header.</p>
+          `;
+          advice.innerHTML = `
+            <b>Quick Fixes:</b><br>
+            1. Run using VS Code <b>Live Server</b> or Python: <code class="text-emerald-300">python -m http.server</code>.<br>
+            2. Disable any aggressive referrer-blocking extensions (like Brave Shields or uBlock for this local test).<br>
+            3. Click the button below to load our verified safe educational video stream.
+          `;
+          break;
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    document.getElementById('closeErrorModalBtn').addEventListener('click', () => {
+      document.getElementById('playerErrorModal').classList.add('hidden');
+    });
+
+    document.getElementById('loadDefaultSafeVideoBtn').addEventListener('click', () => {
+      document.getElementById('playerErrorModal').classList.add('hidden');
+      currentVideoId = "bhtb8uuMpfs";
+      createPlayer(currentVideoId);
+      showToast("Loaded safe physics video", "check");
+    });
+
+    // ==========================================
+    // 4. PLAYBACK TRACKER & ACTIVE ASSESSMENT MODAL
+    // ==========================================
+    function startPlaybackTracker() {
+      if (pollingTimer) clearInterval(pollingTimer);
+
+      pollingTimer = setInterval(() => {
+        if (!player || !isPlayerReady || typeof player.getCurrentTime !== 'function') return;
+
+        const currentSec = player.getCurrentTime();
+        const duration = player.getDuration() || 0;
+
+        // Update time display
+        document.getElementById('timeCurrent').textContent = formatSeconds(currentSec);
+        if (duration > 0) {
+          document.getElementById('timeTotal').textContent = formatSeconds(duration);
+          const pct = Math.min(100, (currentSec / duration) * 100);
+          document.getElementById('scrubberProgress').style.width = `${pct}%`;
+        }
+
+        // Check if an uncompleted checkpoint has been reached within 0.6 second margin
+        if (!activeCheckpoint) {
+          const matched = checkpoints.find(cp => 
+            !cp.completed && 
+            Math.abs(currentSec - cp.time) < 0.65 &&
+            currentSec >= cp.time - 0.2
+          );
+
+          if (matched) {
+            triggerCheckpointModal(matched);
+          }
+        }
+      }, 250);
+    }
+
+    function triggerCheckpointModal(cp) {
+      activeCheckpoint = cp;
+
+      // Force video pause and display locking shield
+      try {
+        player.pauseVideo();
+      } catch (e) {
+        console.warn("Could not pause video:", e);
+      }
+      document.getElementById('videoLockOverlay').classList.remove('hidden');
+
+      // Populate Modal Fields
+      document.getElementById('quizBadgeTime').textContent = `Checkpoint ${formatSeconds(cp.time)}`;
+      document.getElementById('quizQuestionBody').innerHTML = cp.question;
+
+      // Options Rendering
+      const container = document.getElementById('quizOptionsContainer');
+      container.innerHTML = '';
+
+      cp.options.forEach((optText, index) => {
+        if (!optText.trim()) return;
+
+        const btn = document.createElement('button');
+        btn.className = "w-full text-left p-3.5 rounded-xl border border-slate-700/80 bg-slate-900/90 hover:bg-slate-800 hover:border-emerald-500/60 transition-all flex items-center justify-between text-xs sm:text-sm font-medium text-slate-200 group";
+        btn.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="w-6 h-6 rounded-lg bg-slate-800 text-slate-400 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center text-xs font-mono-code font-bold transition-colors">
+              ${String.fromCharCode(65 + index)}
+            </span>
+            <span class="option-text">${optText}</span>
+          </div>
+          <i class="fa-regular fa-circle text-slate-600 group-hover:text-emerald-400"></i>
+        `;
+
+        btn.addEventListener('click', () => handleOptionSelected(index, btn));
+        container.appendChild(btn);
+      });
+
+      // Reset feedback and Continue button
+      document.getElementById('quizFeedbackBox').classList.add('hidden');
+      const resumeBtn = document.getElementById('resumePlaybackBtn');
+      resumeBtn.disabled = true;
+      resumeBtn.className = "px-5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 bg-slate-800 text-slate-500 cursor-not-allowed";
+
+      // Show overlay
+      document.getElementById('quizAssessmentOverlay').classList.remove('hidden');
+      triggerMathJaxTypeset();
+      showToast(`Question at ${formatSeconds(cp.time)}!`, "play");
+    }
+
+    function handleOptionSelected(selectedIndex, clickedBtn) {
+      if (!activeCheckpoint || activeCheckpoint.completed) return;
+
+      const isCorrect = (selectedIndex === activeCheckpoint.correctIndex);
+      activeCheckpoint.completed = true;
+      activeCheckpoint.userAnswer = selectedIndex;
+      activeCheckpoint.isCorrect = isCorrect;
+
+      // Lock buttons and color-code
+      const buttons = document.getElementById('quizOptionsContainer').querySelectorAll('button');
+      buttons.forEach((btn, idx) => {
+        btn.disabled = true;
+        btn.classList.remove('hover:bg-slate-800', 'hover:border-emerald-500/60');
+
+        if (idx === activeCheckpoint.correctIndex) {
+          btn.className = "w-full text-left p-3.5 rounded-xl border border-emerald-500 bg-emerald-950/40 text-emerald-200 font-medium text-xs sm:text-sm flex items-center justify-between";
+          btn.querySelector('i').className = "fa-solid fa-circle-check text-emerald-400";
+        } else if (idx === selectedIndex && !isCorrect) {
+          btn.className = "w-full text-left p-3.5 rounded-xl border border-rose-500 bg-rose-950/40 text-rose-200 font-medium text-xs sm:text-sm flex items-center justify-between";
+          btn.querySelector('i').className = "fa-solid fa-circle-xmark text-rose-400";
+        } else {
+          btn.classList.add('opacity-40');
+        }
+      });
+
+      // Feedback Box
+      const feedbackBox = document.getElementById('quizFeedbackBox');
+      const feedbackTitle = document.getElementById('quizFeedbackTitle');
+      const feedbackContent = document.getElementById('quizFeedbackContent');
+      const feedbackIcon = document.getElementById('quizFeedbackIcon');
+
+      feedbackBox.classList.remove('hidden');
+      if (isCorrect) {
+        feedbackBox.className = "mt-4 p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/30 text-emerald-200 transition-all";
+        feedbackIcon.className = "fa-solid fa-circle-check text-emerald-400 mt-0.5 text-base sm:text-lg";
+        feedbackTitle.textContent = "Correct! Excellent analysis.";
+      } else {
+        feedbackBox.className = "mt-4 p-4 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-200 transition-all";
+        feedbackIcon.className = "fa-solid fa-circle-exclamation text-rose-400 mt-0.5 text-base sm:text-lg";
+        feedbackTitle.textContent = "Incorrect Concept";
+      }
+      feedbackContent.innerHTML = activeCheckpoint.explanation || "No explanation provided.";
+
+      // Unlock Continue Button
+      const resumeBtn = document.getElementById('resumePlaybackBtn');
+      resumeBtn.disabled = false;
+      resumeBtn.className = "px-5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 cursor-pointer active:scale-95";
+
+      // Refresh UI & Re-render MathJax
+      updateProgressStats();
+      renderSidebarList();
+      renderTimelinePins();
+      triggerMathJaxTypeset();
+    }
+
+    // Continue Video playback
+    document.getElementById('resumePlaybackBtn').addEventListener('click', () => {
+      if (!activeCheckpoint) return;
+
+      document.getElementById('quizAssessmentOverlay').classList.add('hidden');
+      document.getElementById('videoLockOverlay').classList.add('hidden');
+      activeCheckpoint = null;
+
+      if (player && typeof player.playVideo === 'function') {
+        const t = player.getCurrentTime();
+        // Seek forward slightly to avoid re-triggering the same exact second
+        player.seekTo(t + 0.6, true);
+        player.playVideo();
+      }
+    });
+
+    // Rewind 5 seconds
+    document.getElementById('rewindToCheckpointStartBtn').addEventListener('click', () => {
+      if (!activeCheckpoint || !player) return;
+      const target = Math.max(0, activeCheckpoint.time - 5);
+      document.getElementById('quizAssessmentOverlay').classList.add('hidden');
+      document.getElementById('videoLockOverlay').classList.add('hidden');
+      activeCheckpoint = null;
+      player.seekTo(target, true);
+      player.playVideo();
+    });
+
+    // ==========================================
+    // 5. TIMELINE SCRUBBER & PINS RENDERING
+    // ==========================================
+    function renderTimelinePins() {
+      const layer = document.getElementById('checkpointMarkersLayer');
+      layer.innerHTML = '';
+      const duration = (player && isPlayerReady && player.getDuration) ? player.getDuration() : 100;
+      if (!duration || duration <= 0) return;
+
+      checkpoints.forEach(cp => {
+        const pin = document.createElement('div');
+        const pct = Math.min(99, Math.max(1, (cp.time / duration) * 100));
+        pin.style.left = `${pct}%`;
+        pin.style.top = '50%';
+        pin.style.transform = 'translate(-50%, -50%)';
+
+        let color = "bg-amber-400 ring-2 ring-slate-900";
+        if (cp.completed) {
+          color = cp.isCorrect ? "bg-emerald-400 ring-2 ring-slate-900" : "bg-rose-400 ring-2 ring-slate-900";
+        }
+
+        pin.className = `absolute w-3.5 h-3.5 rounded-full ${color} cursor-pointer pointer-events-auto hover:scale-150 transition-all z-10`;
+        pin.title = `Checkpoint at ${formatSeconds(cp.time)}`;
+
+        pin.addEventListener('click', (e) => {
+          e.stopPropagation();
+          seekPlayerTo(cp.time);
+        });
+
+        layer.appendChild(pin);
+      });
+    }
+
+    document.getElementById('scrubberTrack').addEventListener('click', (e) => {
+      if (!player || !isPlayerReady) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, clickX / rect.width));
+      const targetSec = pct * player.getDuration();
+      seekPlayerTo(targetSec);
+    });
+
+    function seekPlayerTo(seconds) {
+      if (!player || !isPlayerReady) return;
+      player.seekTo(seconds, true);
+    }
+
+    // ==========================================
+    // 6. SIDEBAR LIST & SCOREBOARD
+    // ==========================================
+    function renderSidebarList() {
+      const container = document.getElementById('checkpointsSidebarContainer');
+      container.innerHTML = '';
+      checkpoints.sort((a, b) => a.time - b.time);
+
+      document.getElementById('countBadge').textContent = `${checkpoints.length} stops`;
+
+      checkpoints.forEach(cp => {
+        const item = document.createElement('div');
+        item.className = "bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 rounded-xl p-3 flex flex-col gap-2 transition-all";
+
+        let badge = `<span class="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md font-semibold">Pending</span>`;
+        if (cp.completed) {
+          badge = cp.isCorrect 
+            ? `<span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"><i class="fa-solid fa-check text-[9px]"></i> Correct</span>`
+            : `<span class="text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1"><i class="fa-solid fa-xmark text-[9px]"></i> Incorrect</span>`;
+        }
+
+        item.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono-code text-emerald-400 font-bold flex items-center gap-1.5 cursor-pointer hover:underline" data-seek="${cp.time}">
+              <i class="fa-solid fa-play text-[10px]"></i> ${formatSeconds(cp.time)}
+            </span>
+            <div class="flex items-center gap-1">
+              ${badge}
+              <button data-edit="${cp.id}" class="text-slate-500 hover:text-emerald-400 p-1 text-xs transition-colors" title="Edit checkpoint">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button data-del="${cp.id}" class="text-slate-500 hover:text-rose-400 p-1 text-xs transition-colors" title="Delete checkpoint">
+                <i class="fa-regular fa-trash-can"></i>
+              </button>
+            </div>
+          </div>
+          <div class="text-xs text-slate-300 font-medium line-clamp-2 question-preview">${cp.question}</div>
+        `;
+
+        item.querySelector('[data-seek]').addEventListener('click', () => seekPlayerTo(cp.time));
+        item.querySelector('[data-edit]').addEventListener('click', () => openEditModal(cp));
+        item.querySelector('[data-del]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteCheckpoint(cp.id);
+        });
+
+        container.appendChild(item);
+      });
+
+      triggerMathJaxTypeset();
+    }
+
+    function deleteCheckpoint(id) {
+      checkpoints = checkpoints.filter(c => c.id !== id);
+      renderTimelinePins();
+      renderSidebarList();
+      updateProgressStats();
+      showToast("Checkpoint deleted", "trash");
+    }
+
+    function updateProgressStats() {
+      const total = checkpoints.length;
+      const completed = checkpoints.filter(c => c.completed).length;
+      const correct = checkpoints.filter(c => c.completed && c.isCorrect).length;
+      const incorrect = completed - correct;
+
+      document.getElementById('statCorrect').textContent = correct;
+      document.getElementById('statIncorrect').textContent = incorrect;
+      document.getElementById('statTotal').textContent = total;
+
+      const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
+      document.getElementById('badgePercent').textContent = `${pct}% Complete`;
+      document.getElementById('headerScore').textContent = `${correct} / ${total} (${pct}%)`;
+    }
+
+    document.getElementById('btnResetQuizProgress').addEventListener('click', () => {
+      checkpoints.forEach(cp => {
+        cp.completed = false;
+        cp.userAnswer = null;
+        cp.isCorrect = false;
+      });
+      renderTimelinePins();
+      renderSidebarList();
+      updateProgressStats();
+      showToast("Quiz answers reset", "rotate-left");
+    });
+
+    // ==========================================
+    // 7. ROBUST URL PARSER (ERROR 153 PROTECTION)
+    // ==========================================
+    document.getElementById('btnLoadCustomVideo').addEventListener('click', () => {
+      const rawInput = document.getElementById('videoUrlInput').value.trim();
+      if (!rawInput) {
+        showToast("Please paste a YouTube URL or Video ID", "triangle-exclamation");
+        return;
+      }
+
+      const extractedId = parseYouTubeVideoID(rawInput);
+      if (extractedId) {
+        currentVideoId = extractedId;
+        createPlayer(extractedId);
+        document.getElementById('videoUrlInput').value = '';
+        showToast(`Loading video: ${extractedId}`, "spinner");
+      } else {
+        alert("Could not extract a valid 11-character YouTube video ID. Please check the URL.");
+      }
+    });
+
+    /**
+     * Parses all common YouTube URL formats:
+     * - Standard watch URLs: youtube.com/watch?v=XXXXXXXXXXX
+     * - Shortened URLs: youtu.be/XXXXXXXXXXX
+     * - Embed URLs: youtube.com/embed/XXXXXXXXXXX
+     * - Shorts URLs: youtube.com/shorts/XXXXXXXXXXX
+     * - Live URLs: youtube.com/live/XXXXXXXXXXX
+     * - Raw 11-char ID
+     */
+    function parseYouTubeVideoID(url) {
+      if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+        return url;
+      }
+      const regExp = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?.*v=|embed\/|v\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+      const match = url.match(regExp);
+      return match ? match[1] : null;
+    }
+
+    // ==========================================
+    // 8. CHECKPOINT CREATOR & EDITOR MODAL
+    // ==========================================
+    const editorModal = document.getElementById('checkpointEditorModal');
+    const checkpointForm = document.getElementById('checkpointForm');
+    const inputTime = document.getElementById('inputTime');
+    const inputQuestion = document.getElementById('inputQuestion');
+    const inputExplanation = document.getElementById('inputExplanation');
+    const editingCheckpointId = document.getElementById('editingCheckpointId');
+
+    document.getElementById('openCreateModalBtn').addEventListener('click', () => {
+      openCreateModal();
+    });
+
+    document.getElementById('btnMarkCurrentTime').addEventListener('click', () => {
+      if (player && isPlayerReady) {
+        const cur = Math.floor(player.getCurrentTime()) || 10;
+        openCreateModal(cur);
+      } else {
+        openCreateModal(15);
+      }
+    });
+
+    document.getElementById('btnGrabCurrentTime').addEventListener('click', () => {
+      if (player && isPlayerReady) {
+        inputTime.value = Math.floor(player.getCurrentTime());
+      }
+    });
+
+    function openCreateModal(prefillTime = null) {
+      editingCheckpointId.value = "";
+      document.getElementById('editorModalTitle').textContent = "Create Checkpoint Question";
+      checkpointForm.reset();
+
+      if (prefillTime !== null) {
+        inputTime.value = prefillTime;
+      } else if (player && isPlayerReady) {
+        inputTime.value = Math.floor(player.getCurrentTime()) || 15;
+      }
+
+      editorModal.classList.remove('hidden');
+    }
+
+    function openEditModal(cp) {
+      editingCheckpointId.value = cp.id;
+      document.getElementById('editorModalTitle').textContent = `Edit Checkpoint (${formatSeconds(cp.time)})`;
+      inputTime.value = cp.time;
+      inputQuestion.value = cp.question;
+      inputExplanation.value = cp.explanation || "";
+
+      document.getElementById('optField0').value = cp.options[0] || "";
+      document.getElementById('optField1').value = cp.options[1] || "";
+      document.getElementById('optField2').value = cp.options[2] || "";
+      document.getElementById('optField3').value = cp.options[3] || "";
+
+      const radios = document.querySelectorAll('input[name="correctRadioGroup"]');
+      radios.forEach((r, idx) => {
+        r.checked = (idx === cp.correctIndex);
+      });
+
+      editorModal.classList.remove('hidden');
+    }
+
+    document.getElementById('btnCloseEditorModal').addEventListener('click', () => {
+      editorModal.classList.add('hidden');
+    });
+    document.getElementById('btnCancelEditor').addEventListener('click', () => {
+      editorModal.classList.add('hidden');
+    });
+
+    checkpointForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const timeVal = parseFloat(inputTime.value);
+      const qVal = inputQuestion.value.trim();
+      const expVal = inputExplanation.value.trim();
+      const selectedRadio = document.querySelector('input[name="correctRadioGroup"]:checked');
+      const correctIdx = parseInt(selectedRadio ? selectedRadio.value : "0", 10);
+
+      const opts = [
+        document.getElementById('optField0').value.trim(),
+        document.getElementById('optField1').value.trim(),
+        document.getElementById('optField2').value.trim(),
+        document.getElementById('optField3').value.trim()
+      ].filter(o => o.length > 0);
+
+      if (opts.length < 2) {
+        alert("Please provide at least two choice options.");
+        return;
+      }
+
+      const existingId = editingCheckpointId.value;
+      if (existingId) {
+        // Update existing checkpoint
+        const target = checkpoints.find(c => c.id === existingId);
+        if (target) {
+          target.time = timeVal;
+          target.question = qVal;
+          target.options = opts;
+          target.correctIndex = correctIdx < opts.length ? correctIdx : 0;
+          target.explanation = expVal;
+          target.completed = false;
+        }
+        showToast("Checkpoint updated", "check");
+      } else {
+        // Add new checkpoint
+        const newCp = {
+          id: "cp-" + Date.now(),
+          time: timeVal,
+          question: qVal,
+          options: opts,
+          correctIndex: correctIdx < opts.length ? correctIdx : 0,
+          explanation: expVal,
+          completed: false,
+          userAnswer: null,
+          isCorrect: false
+        };
+        checkpoints.push(newCp);
+        showToast(`Created checkpoint at ${formatSeconds(timeVal)}`, "check");
+      }
+
+      editorModal.classList.add('hidden');
+      renderTimelinePins();
+      renderSidebarList();
+      updateProgressStats();
+      triggerMathJaxTypeset();
+    });
+
+    // ==========================================
+    // 9. IMPORT & EXPORT JSON CAPABILITIES
+    // ==========================================
+    document.getElementById('exportQuizBtn').addEventListener('click', () => {
+      const data = {
+        videoId: currentVideoId,
+        exportedAt: new Date().toISOString(),
+        checkpoints: checkpoints
+      };
+
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vidquiz-${currentVideoId}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Quiz exported to JSON file", "download");
+    });
+
+    document.getElementById('importQuizInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          if (imported.checkpoints && Array.isArray(imported.checkpoints)) {
+            checkpoints = imported.checkpoints;
+            if (imported.videoId && imported.videoId !== currentVideoId) {
+              currentVideoId = imported.videoId;
+              createPlayer(currentVideoId);
+            }
+            renderTimelinePins();
+            renderSidebarList();
+            updateProgressStats();
+            triggerMathJaxTypeset();
+            showToast("Quiz checkpoints imported successfully", "upload");
+          } else {
+            alert("Invalid quiz JSON format: Missing checkpoints array.");
+          }
+        } catch (err) {
+          alert("Could not parse JSON file: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+
+    // ==========================================
+    // 10. CONTROLS, MATHJAX & UTILITY HELPERS
+    // ==========================================
+    document.getElementById('btnPlayPause').addEventListener('click', () => {
+      if (!player || !isPlayerReady) return;
+      const state = player.getPlayerState();
+      if (state === YT.PlayerState.PLAYING) {
+        player.pauseVideo();
+      } else {
+        player.playVideo();
+      }
+    });
+
+    function updateTotalDuration() {
+      if (player && isPlayerReady && player.getDuration) {
+        const d = player.getDuration();
+        if (d) document.getElementById('timeTotal').textContent = formatSeconds(d);
+      }
+    }
+
+    function triggerMathJaxTypeset() {
+      if (window.MathJax && typeof MathJax.typesetPromise === 'function') {
+        MathJax.typesetPromise().catch((err) => console.warn('MathJax error:', err));
+      }
+    }
+
+    function formatSeconds(sec) {
+      if (isNaN(sec) || sec < 0) return "00:00";
+      const total = Math.floor(sec);
+      const m = Math.floor(total / 60);
+      const s = total % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function showToast(msg, iconName = "check") {
+      const toast = document.getElementById('toastNotification');
+      const text = document.getElementById('toastMessage');
+      const icon = document.getElementById('toastIcon');
+
+      text.textContent = msg;
+      icon.className = `fa-solid fa-${iconName} text-emerald-400 text-base`;
+
+      toast.classList.remove('translate-y-16', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-16', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3200);
+    }
+  </script>
+</body>
+</html>
