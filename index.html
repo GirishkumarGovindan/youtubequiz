@@ -202,6 +202,12 @@
       </label>
       <input type="file" id="importQuizInput" accept=".json" class="hidden">
 
+      <!-- AI Quiz Generator Trigger Button -->
+      <button id="openAiGenModalBtn" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-indigo-600/30 active:scale-95 transition-all">
+        <i class="fa-solid fa-wand-magic-sparkles text-xs text-amber-300 animate-pulse"></i>
+        <span>✨ AI Generator</span>
+      </button>
+
       <!-- Add Checkpoint Button -->
       <button id="openCreateModalBtn" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-lg shadow-emerald-600/20 active:scale-95 transition-all">
         <i class="fa-solid fa-plus text-xs"></i>
@@ -477,6 +483,121 @@
           </button>
         </div>
       </form>
+
+    </div>
+  </div>
+
+  <!-- AI Quiz Generator Modal (Gemini Integration) -->
+  <div id="aiGenModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+    <div class="glass-modal max-w-lg w-full rounded-2xl p-5 sm:p-6 shadow-2xl max-h-[92vh] overflow-y-auto no-scrollbar border border-indigo-500/40">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-md shadow-indigo-500/30">
+            <i class="fa-solid fa-wand-magic-sparkles text-amber-300 text-xs"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-white text-base">Gemini AI Quiz Synthesizer</h3>
+            <p class="text-[11px] text-slate-400">Automatic timestamped quiz questions via Gemini 2.5 Flash</p>
+          </div>
+        </div>
+        <button id="btnCloseAiGenModal" class="text-slate-400 hover:text-white transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4 text-xs">
+        <!-- API Key Input Field -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block font-semibold text-slate-300">Google Gemini API Key</label>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 text-[11px] flex items-center gap-1">
+              <span>Get Free Key</span>
+              <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+            </a>
+          </div>
+          <div class="relative">
+            <input type="password" id="geminiApiKeyInput" placeholder="AIzaSy..."
+              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-slate-200 font-mono-code focus:outline-none focus:border-indigo-500">
+            <button type="button" id="toggleApiKeyVisibility" class="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
+              <i class="fa-regular fa-eye text-xs" id="apiKeyEyeIcon"></i>
+            </button>
+          </div>
+          <span class="text-[10px] text-slate-500 mt-1 block">Stored securely in your browser's localStorage. Never sent to any third-party server.</span>
+        </div>
+
+        <!-- Mode Selection Tabs -->
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1.5">Generation Source Mode</label>
+          <div class="grid grid-cols-2 gap-2 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+            <button type="button" id="modeBtnVideo" class="py-2 px-3 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition-all flex items-center justify-center gap-1.5">
+              <i class="fa-brands fa-youtube"></i>
+              <span>Direct Video Analysis</span>
+            </button>
+            <button type="button" id="modeBtnTranscript" class="py-2 px-3 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-file-lines"></i>
+              <span>Transcript / Notes</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode A: Video Analysis Hint -->
+        <div id="videoModeDetails" class="p-3 bg-slate-900/70 border border-slate-800 rounded-xl text-slate-400 text-[11px] leading-relaxed">
+          <p><span class="text-indigo-400 font-semibold">Target Video:</span> <code class="text-slate-200 font-mono-code" id="aiModalVideoTarget">bhtb8uuMpfs</code></p>
+          <p class="mt-1">Gemini inspects the YouTube video directly, identifies pivotal conceptual transitions, and assigns accurate timestamps.</p>
+        </div>
+
+        <!-- Mode B: Transcript / Topic Input Area -->
+        <div id="transcriptModeDetails" class="hidden flex flex-col gap-1.5">
+          <label class="block font-semibold text-slate-300">Paste Video Transcript, Subtitles, or Lesson Concepts</label>
+          <textarea id="aiTranscriptInput" rows="4" placeholder="Paste YouTube transcript lines with timestamps (e.g., 01:20 Faraday introduces the coil...) or detailed lesson notes..."
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500"></textarea>
+          <span class="text-[10px] text-slate-500">Tip: Click 'Show transcript' under any YouTube video, copy-paste it here to bypass video geographic or licensing restrictions.</span>
+        </div>
+
+        <!-- Generation Parameters -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Question Count</label>
+            <select id="aiQuestionCount" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+              <option value="3" selected>3 Checkpoints (Brief)</option>
+              <option value="5">5 Checkpoints (Standard)</option>
+              <option value="8">8 Checkpoints (Comprehensive)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Pedagogical Level</label>
+            <select id="aiDifficultyLevel" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+              <option value="Conceptual & Foundational" selected>Foundational Concept</option>
+              <option value="Analytical & Problem Solving">Analytical / Applied</option>
+              <option value="Advanced Exam / Olympiad">Advanced & Rigorous</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Merge Mode -->
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="aiReplaceExisting" checked class="accent-indigo-600 w-4 h-4 rounded cursor-pointer">
+          <label for="aiReplaceExisting" class="text-slate-300 cursor-pointer">Replace existing checkpoints with newly generated set</label>
+        </div>
+
+        <!-- AI Progress / Status Indicator -->
+        <div id="aiGenerationStatusBox" class="hidden p-3.5 rounded-xl border border-indigo-500/40 bg-indigo-950/40 text-indigo-200 flex items-center gap-3">
+          <i class="fa-solid fa-circle-notch fa-spin text-indigo-400 text-base"></i>
+          <span id="aiGenerationStatusText" class="text-xs font-medium">Contacting Gemini 2.5 Flash...</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-end gap-2.5 pt-3 border-t border-slate-800">
+          <button type="button" id="btnCancelAiModal" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors">
+            Cancel
+          </button>
+          <button type="button" id="btnRunAiGeneration" class="px-5 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-2 active:scale-95 transition-all">
+            <i class="fa-solid fa-wand-magic-sparkles text-xs text-amber-300"></i>
+            <span>Generate Checkpoints</span>
+          </button>
+        </div>
+      </div>
 
     </div>
   </div>
@@ -1178,7 +1299,228 @@
     });
 
     // ==========================================
-    // 9. IMPORT & EXPORT JSON CAPABILITIES
+    // 9. GEMINI AI QUIZ GENERATOR INTEGRATION
+    // ==========================================
+    let aiGenerationMode = 'video'; // 'video' | 'transcript'
+    const aiGenModal = document.getElementById('aiGenModal');
+    const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
+    const modeBtnVideo = document.getElementById('modeBtnVideo');
+    const modeBtnTranscript = document.getElementById('modeBtnTranscript');
+    const videoModeDetails = document.getElementById('videoModeDetails');
+    const transcriptModeDetails = document.getElementById('transcriptModeDetails');
+    const aiGenerationStatusBox = document.getElementById('aiGenerationStatusBox');
+    const aiGenerationStatusText = document.getElementById('aiGenerationStatusText');
+    const btnRunAiGeneration = document.getElementById('btnRunAiGeneration');
+
+    // Load saved API key from localStorage
+    const savedApiKey = localStorage.getItem('vidquiz_gemini_api_key');
+    if (savedApiKey) {
+      geminiApiKeyInput.value = savedApiKey;
+    }
+
+    // Modal Triggers
+    document.getElementById('openAiGenModalBtn').addEventListener('click', () => {
+      document.getElementById('aiModalVideoTarget').textContent = currentVideoId;
+      aiGenModal.classList.remove('hidden');
+    });
+
+    document.getElementById('btnCloseAiGenModal').addEventListener('click', () => {
+      aiGenModal.classList.add('hidden');
+    });
+    document.getElementById('btnCancelAiModal').addEventListener('click', () => {
+      aiGenModal.classList.add('hidden');
+    });
+
+    // API Key visibility toggle
+    document.getElementById('toggleApiKeyVisibility').addEventListener('click', () => {
+      const isPass = geminiApiKeyInput.type === 'password';
+      geminiApiKeyInput.type = isPass ? 'text' : 'password';
+      document.getElementById('apiKeyEyeIcon').className = isPass ? "fa-regular fa-eye-slash text-xs" : "fa-regular fa-eye text-xs";
+    });
+
+    // Switch between Direct Video Analysis and Transcript mode
+    modeBtnVideo.addEventListener('click', () => {
+      aiGenerationMode = 'video';
+      modeBtnVideo.className = "py-2 px-3 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition-all flex items-center justify-center gap-1.5";
+      modeBtnTranscript.className = "py-2 px-3 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center gap-1.5";
+      videoModeDetails.classList.remove('hidden');
+      transcriptModeDetails.classList.add('hidden');
+    });
+
+    modeBtnTranscript.addEventListener('click', () => {
+      aiGenerationMode = 'transcript';
+      modeBtnTranscript.className = "py-2 px-3 rounded-lg text-xs font-semibold bg-indigo-600 text-white transition-all flex items-center justify-center gap-1.5";
+      modeBtnVideo.className = "py-2 px-3 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center gap-1.5";
+      transcriptModeDetails.classList.remove('hidden');
+      videoModeDetails.classList.add('hidden');
+    });
+
+    // Run AI Generation Handler
+    btnRunAiGeneration.addEventListener('click', async () => {
+      const apiKey = geminiApiKeyInput.value.trim();
+      if (!apiKey) {
+        alert("Please enter a valid Google Gemini API Key. Click 'Get Free Key' if you need one.");
+        geminiApiKeyInput.focus();
+        return;
+      }
+
+      // Persist API key locally for convenience
+      localStorage.setItem('vidquiz_gemini_api_key', apiKey);
+
+      const count = parseInt(document.getElementById('aiQuestionCount').value, 10) || 3;
+      const difficulty = document.getElementById('aiDifficultyLevel').value;
+      const shouldReplace = document.getElementById('aiReplaceExisting').checked;
+      const totalDuration = (player && isPlayerReady && player.getDuration) ? Math.floor(player.getDuration()) : 300;
+
+      // Update UI to running state
+      btnRunAiGeneration.disabled = true;
+      btnRunAiGeneration.classList.add('opacity-50', 'cursor-not-allowed');
+      aiGenerationStatusBox.classList.remove('hidden');
+      aiGenerationStatusText.textContent = "Synthesizing pedagogical checkpoints via Gemini 2.5 Flash...";
+
+      try {
+        const generatedCheckpoints = await callGeminiQuizAPI(apiKey, {
+          mode: aiGenerationMode,
+          videoId: currentVideoId,
+          transcriptText: document.getElementById('aiTranscriptInput').value.trim(),
+          count: count,
+          difficulty: difficulty,
+          videoDuration: totalDuration
+        });
+
+        if (!generatedCheckpoints || !Array.isArray(generatedCheckpoints) || generatedCheckpoints.length === 0) {
+          throw new Error("Gemini returned an empty or malformed quiz structure.");
+        }
+
+        // Format and assign IDs
+        const formattedCheckpoints = generatedCheckpoints.map((item, idx) => ({
+          id: "cp-ai-" + Date.now() + "-" + idx,
+          time: Math.max(2, Math.min(totalDuration > 0 ? totalDuration - 2 : 9999, parseInt(item.time, 10) || 15 * (idx + 1))),
+          question: item.question,
+          options: item.options.slice(0, 4),
+          correctIndex: (typeof item.correctIndex === 'number' && item.correctIndex >= 0 && item.correctIndex < item.options.length) ? item.correctIndex : 0,
+          explanation: item.explanation || "Formative feedback generated by Gemini AI.",
+          completed: false,
+          userAnswer: null,
+          isCorrect: false
+        }));
+
+        if (shouldReplace) {
+          checkpoints = formattedCheckpoints;
+        } else {
+          checkpoints = checkpoints.concat(formattedCheckpoints);
+        }
+
+        renderTimelinePins();
+        renderSidebarList();
+        updateProgressStats();
+        triggerMathJaxTypeset();
+
+        aiGenModal.classList.add('hidden');
+        showToast(`✨ Generated ${formattedCheckpoints.length} AI checkpoints!`, "wand-magic-sparkles");
+
+      } catch (err) {
+        console.error("AI Generation Error:", err);
+        alert(`AI Generation Failed: ${err.message}\n\nTip: If direct YouTube analysis fails for protected videos, switch to the 'Transcript / Notes' tab.`);
+      } finally {
+        btnRunAiGeneration.disabled = false;
+        btnRunAiGeneration.classList.remove('opacity-50', 'cursor-not-allowed');
+        aiGenerationStatusBox.classList.add('hidden');
+      }
+    });
+
+    /**
+     * Executes the Gemini 2.5 Flash call with structured JSON response schema
+     */
+    async function callGeminiQuizAPI(apiKey, params) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+      const systemInstruction = `You are an expert pedagogical assessment designer. 
+Your task is to analyze instructional material and generate multiple-choice formative quiz checkpoints paused at key learning moments.
+Rules:
+1. Provide accurate timestamps (in seconds) where a concept has just been explained and students should be tested.
+2. Question, options, and explanations MUST include LaTeX equations using $...$ for inline math and $$...$$ for display formulas when mathematical or scientific terms are involved.
+3. Provide exactly 4 options per question.
+4. Set correctIndex as an integer from 0 to 3.
+5. Provide a thorough pedagogical explanation for the correct answer.
+6. Target difficulty level: ${params.difficulty}.`;
+
+      let contentsPart = [];
+
+      if (params.mode === 'video') {
+        const promptText = `Analyze this YouTube video (URL: https://www.youtube.com/watch?v=${params.videoId}, Duration: approx ${params.videoDuration} seconds).
+Generate exactly ${params.count} formative quiz checkpoints distributed evenly throughout the video at the end of key concept explanations.
+Return a valid JSON array of question objects.`;
+
+        contentsPart = [
+          { text: promptText },
+          {
+            file_data: {
+              mime_type: "video/mp4",
+              file_uri: `https://www.youtube.com/watch?v=${params.videoId}`
+            }
+          }
+        ];
+      } else {
+        const sourceText = params.transcriptText || `Video subject for YouTube video ${params.videoId}`;
+        const promptText = `Based on the following transcript / lesson material for a ${params.videoDuration}-second video, generate exactly ${params.count} timestamped formative quiz checkpoints at logical pause moments:
+---
+${sourceText}
+---`;
+        contentsPart = [{ text: promptText }];
+      }
+
+      const payload = {
+        contents: [{ parts: contentsPart }],
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        },
+        generationConfig: {
+          response_mime_type: "application/json",
+          response_schema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                "time": { "type": "INTEGER", "description": "Timestamp in seconds where the video will pause" },
+                "question": { "type": "STRING", "description": "The question prompt, using LaTeX $...$ for equations" },
+                "options": {
+                  "type": "ARRAY",
+                  "items": { "type": "STRING" },
+                  "description": "Exactly 4 multiple-choice options"
+                },
+                "correctIndex": { "type": "INTEGER", "description": "Index 0 to 3 of the correct option" },
+                "explanation": { "type": "STRING", "description": "Detailed explanation and conceptual rationale" }
+              },
+              required: ["time", "question", "options", "correctIndex", "explanation"]
+            }
+          }
+        }
+      };
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errMsg = errorData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+        throw new Error(errMsg);
+      }
+
+      const data = await response.json();
+      const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawJson) {
+        throw new Error("No candidate content received from the Gemini API.");
+      }
+
+      return JSON.parse(rawJson);
+    }
+
+    // ==========================================
+    // 10. IMPORT & EXPORT JSON CAPABILITIES
     // ==========================================
     document.getElementById('exportQuizBtn').addEventListener('click', () => {
       const data = {
